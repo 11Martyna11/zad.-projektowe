@@ -3,13 +3,13 @@ from tkinter import messagebox, ttk
 
 # Przykladowe dane logowania
 USER_CREDENTIALS = {
-    "admin": "admin123",
-    "manager": "manager321"
+    "admin": "martyna123",
+    "manager": "cytryna321"
 }
 
 def verify_login(username, password):
     # Logowanie zawsze poprawne, jeśli login i hasło są niepuste
-    return bool(username.strip()) and bool(password.strip())
+    return USER_CREDENTIALS.get(username) == password
 
 def attempt_login():
     username = username_entry.get()
@@ -18,7 +18,7 @@ def attempt_login():
         login_window.destroy()
         launch_main_app()
     else:
-        messagebox.showerror("Błąd logowania", "Podaj login i hasło")
+        messagebox.showerror("Prawidłowe logowanie")
 
 def launch_main_app():
     def add_store():
