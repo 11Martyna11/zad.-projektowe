@@ -1,24 +1,28 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-# Przykladowe dane logowania
+# dane logowania
 USER_CREDENTIALS = {
-    "admin": "martyna123",
-    "manager": "cytryna321"
+    "admin": "admin123",
+    "manager": "manager321"
 }
 
 def verify_login(username, password):
-    # Logowanie zawsze poprawne, jeśli login i hasło są niepuste
+
+    username = username.strip()
+    password = password.strip()
     return USER_CREDENTIALS.get(username) == password
 
 def attempt_login():
     username = username_entry.get()
     password = password_entry.get()
     if verify_login(username, password):
+        messagebox.showinfo("Logowanie udane", "Zalogowano pomyślnie.")
         login_window.destroy()
         launch_main_app()
     else:
-        messagebox.showerror("Prawidłowe logowanie")
+        messagebox.showerror("Błąd logowania", "Nieprawidłowy login lub hasło")
+
 
 def launch_main_app():
     def add_store():
