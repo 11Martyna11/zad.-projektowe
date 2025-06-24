@@ -33,6 +33,42 @@ def wikigeocode(city: str):
     except Exception:
         return 52.2297, 21.0122
 
+class Store:
+    def __init__(self, name, location):
+        self.name = name
+        self.location = location
+        self.lat, self.lon = wikigeocode(location)
+        self.employees = []
+        self.suppliers = []
+        self.marker = None
+
+    def __str__(self):
+        return f"{self.name} ({self.location})"
+
+class Employee:
+    def __init__(self, fullname, position, location, store=None):
+        self.fullname = fullname
+        self.position = position
+        self.location = location
+        self.lat, self.lon = wikigeocode(location)
+        self.store = store
+        self.marker = None
+
+    def __str__(self):
+        return f"{self.fullname} – {self.position} ({self.location})"
+
+class Supplier:
+    def __init__(self, name, category, location, store=None):
+        self.name = name
+        self.category = category
+        self.location = location
+        self.lat, self.lon = wikigeocode(location)
+        self.store = store
+        self.marker = None
+
+    def __str__(self):
+        return f"{self.name} – {self.category} ({self.location})"
+#skończyłam na tym
 def launch_main_app():
     def add_store():
         name = store_name_entry.get()
