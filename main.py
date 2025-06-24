@@ -3,8 +3,7 @@ from tkinter import messagebox, ttk
 
 # dane logowania
 USER_CREDENTIALS = {
-    "admin": "admin123",
-    "manager": "manager321"
+    "admin": "admin123"
 }
 
 def verify_login(username, password):
@@ -23,6 +22,16 @@ def attempt_login():
     else:
         messagebox.showerror("Błąd logowania", "Nieprawidłowy login lub hasło")
 
+def wikigeocode(city: str):
+    url = f"https://pl.wikipedia.org/wiki/{city.strip()}"
+    try:
+        html = requests.get(url, timeout=6).text
+        soup = BeautifulSoup(html, "html.parser")
+        lat = soup.select('.latitude')[1].text.replace(',', '.')
+        lon = soup.select('.longitude')[1].text.replace(',', '.')
+        return float(lat), float(lon)
+    except Exception:
+        return 52.2297, 21.0122
 
 def launch_main_app():
     def add_store():
@@ -84,7 +93,15 @@ def launch_main_app():
     store_listbox = tk.Listbox(sklepy_tab, width=50)
     store_listbox.pack(pady=5)
 
-# Pracownicy na tym skonczylam
+    def remove_store():
+        selected = store_listbox.curselection()
+        if selected:
+            store_listbox.delete(selected)
+        else:
+            messagebox.showwarning("Brak wyboru", "Zaznacz sklep do usunięcia")
+
+    tk.Button(sklepy_tab, text="Usuń zaznaczony sklep", command=remove_store).pack(pady=5)
+
     tk.Label(pracownicy_tab, text="Zarządzanie pracownikami", font=("Arial", 14)).pack(pady=10)
     employee_frame = tk.Frame(pracownicy_tab)
     employee_frame.pack()
@@ -98,19 +115,41 @@ def launch_main_app():
     employee_listbox = tk.Listbox(employee_frame, width=50)
     employee_listbox.pack(pady=5)
 
-# Dostawcy
+    def remove_employee():
+        selected = employee_listbox.curselection()
+        if selected:
+            employee_listbox.delete(selected)
+        else:
+            messagebox.showwarning("Brak wyboru", "Zaznacz pracownika do usunięcia")
+
+    tk.Button(pracownicy_tab, text="Usuń zaznaczonego pracownika", command=remove_employee).pack(pady=5)
+
+    # Dostawcy
     tk.Label(dostawcy_tab, text="Zarządzanie dostawcami", font=("Arial", 14)).pack(pady=10)
-    supplier_frame = ttk.Frame(dostawcy_tab)
-    supplier_frame.pack()
+    supplier_frame = ttk.Frame(dostawcy_tab, bg="lightgray", borderwidth=1, relief="solid")
+    supplier_frame.pack(padx=10, pady=10)
+
     tk.Label(supplier_frame, text = "Nazwa dostawcy:").grid(row=0, column=0)
     supplier_name_entry = tk.Entry(supplier_frame)
     supplier_name_entry.grid(row=0, column=1)
+
     tk.Label(supplier_frame, text="Kategoria:").grid(row=1, column=0)
     supplier_category_entry = tk.Entry(supplier_frame)
     supplier_category_entry.grid(row=1, column=1)
+
     tk.Button(supplier_frame, text = "Dodaj dostawcę:", command=add_supplier).grid(row=2, columnspan=2, pady=5)
+
     supplier_listbox = tk.Listbox(dostawcy_tab, width=50)
     supplier_listbox.pack(pady=5)
+
+    def remove_supplier():
+        selected = supplier_listbox.curselection()
+        if selected:
+            supplier_listbox.delete(selected)
+        else:
+            messagebox.showwarning("Brak wyboru", "Zaznacz dostawcę do usunięcia")
+
+    tk.Button(dostawcy_tab, text="Usuń zaznaczonego dostawcę", command=remove_supplier).pack(pady=5)
 
     main_app.mainloop()
 
