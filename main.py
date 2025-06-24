@@ -22,6 +22,17 @@ def attempt_login():
     else:
         messagebox.showerror("Błąd logowania", "Nieprawidłowy login lub hasło")
 
+def wikigeocode(city: str):
+    url = f"https://pl.wikipedia.org/wiki/{city.strip()}"
+    try:
+        html = requests.get(url, timeout=6).text
+        soup = BeautifulSoup(html, "html.parser")
+        lat = soup.select('.latitude')[1].text.replace(',', '.')
+        lon = soup.select('.longitude')[1].text.replace(',', '.')
+        return float(lat), float(lon)
+    except Exception:
+        return 52.2297, 21.0122
+
 def launch_main_app():
     def add_store():
         name = store_name_entry.get()
