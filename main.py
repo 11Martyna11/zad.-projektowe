@@ -1,9 +1,15 @@
+from __future__ import annotations
+
+import json
+import threading
+import time
 import tkinter as tk
 from tkinter import messagebox, ttk
+
 import requests
-import json, time, urllib.parse
-from bs4 import BeautifulSoup
 import tkintermapview
+from bs4 import BeautifulSoup
+
 
 # dane logowania
 USER_CREDENTIALS = {"admin": "admin123"}
@@ -21,17 +27,19 @@ def attempt_login() -> None:
     else:
         messagebox.showerror("Błąd logowania", "Nieprawidłowy login lub hasło")
 
+PRESET_STORES = [
+    ("SuperMarket Centrum", "Warszawa, Marszałkowska 99", 52.2297, 21.0122),
+    ("Fresh Market Północ", "Gdańsk, Długa 1", 54.3480, 18.6466),
+    ("Eko-Sklep Południe", "Kraków, Rynek Główny 12", 50.0619, 19.9373),
+]
+
+PL_CENTER = (52.2297, 21.0122)
 
 def nominatim_geocode(query: str) -> tuple[float, float] | None:
-    """
-    Zwraca (lat, lon) dla pełnego adresu używając Nominatim.
-    Jeśli nie znajdzie – zwraca None.
-    """
+    """Zwraca (lat, lon) dla pełnego adresu przy użyciu Nominatim OSM."""
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": query, "format": "json", "limit": 1}
-    headers = {"User-Agent": "ShopManagerApp/1.0 (kontakt@example.com)"}
-
-    time.sleep(1)  # grzeczne użycie API
+    headers = {"User-Agent": "ShopManagerApp/1.1 (kontakt@example.com)"}
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=6)
         data = resp.json()
@@ -40,6 +48,7 @@ def nominatim_geocode(query: str) -> tuple[float, float] | None:
     except (requests.RequestException, json.JSONDecodeError):
         pass
     return None
+
 
 def wikigeocode(city: str):
     url = f"https://pl.wikipedia.org/wiki/{city.strip()}"
@@ -52,13 +61,14 @@ def wikigeocode(city: str):
     except Exception:
         return 52.2297, 21.0122
 
+
 class Store:
     def __init__(self, name: str, address: str):
-        self.name      = name
-        self.address   = address
+        self.name = name
+        self.address = address
         self.employees: list[Employee] = []
         self.suppliers: list[Supplier] = []
-        self.marker    = None
+        self.marker = None
 
         coords = nominatim_geocode(address)
         if coords is None:
@@ -72,6 +82,7 @@ class Store:
     def __str__(self) -> str:
         return f"{self.name} ({self.address})"
 
+
 class Employee:
     def __init__(self, fullname, position, location, store=None):
         self.fullname = fullname
@@ -83,6 +94,7 @@ class Employee:
 
     def __str__(self):
         return f"{self.fullname} – {self.position} ({self.location})"
+
 
 class Supplier:
     def __init__(self, name, category, location, store=None):
@@ -202,28 +214,28 @@ def launch_main_app() -> None:
         sup_assign_cmb["values"] = ["(brak)"] + vals
 
     # --------------- CRUD sklepy -----------------------
+
     def add_store():
         name = store_name_ent.get().strip()
         addr = store_loc_ent.get().strip()
 
         if not name or not addr:
-            messagebox.showwarning("Brak danych", "Uzupełnij oba pola")
+            messagebox.showwarning("Brak danych", "Uzupełnij Nazwę i Adres.")
             return
 
         try:
-            st = Store(name, addr)  # ←  tu może polecieć ValueError
+            st = Store(name, addr)
         except ValueError as err:
             messagebox.showerror("Geokoder", str(err))
-            return  # nic nie dodajemy
+            return
 
         stores.append(st)
-        for w in (store_name_ent, store_loc_ent):
-            w.delete(0, tk.END)
+        store_name_ent.delete(0, tk.END)
+        store_loc_ent.delete(0, tk.END)
 
         refresh_store_lb();
         sync_store_combos();
         refresh_map()
-
 
     def del_store():
         if not store_lb.curselection():
@@ -235,8 +247,11 @@ def launch_main_app() -> None:
             employees.remove(e)
         for s in st.suppliers:
             suppliers.remove(s)
-        refresh_store_lb(); sync_store_combos()
-        refresh_emp_lb(); refresh_sup_lb(); refresh_map()
+        refresh_store_lb();
+        sync_store_combos()
+        refresh_emp_lb();
+        refresh_sup_lb();
+        refresh_map()
 
     # --------------- CRUD pracownicy -------------------
     def add_emp():
@@ -252,7 +267,8 @@ def launch_main_app() -> None:
         for w in (emp_name_ent, emp_pos_ent, emp_loc_ent):
             w.delete(0, tk.END)
         emp_assign_cmb.set("(brak)")
-        refresh_emp_lb(); refresh_map()
+        refresh_emp_lb();
+        refresh_map()
 
     def del_emp():
         if not employee_lb.curselection():
@@ -266,7 +282,8 @@ def launch_main_app() -> None:
             employees.remove(e)
         if e.marker:
             e.marker.delete()
-        refresh_emp_lb(); refresh_map()
+        refresh_emp_lb();
+        refresh_map()
 
     # --------------- CRUD dostawcy ---------------------
     def add_sup():
@@ -282,7 +299,8 @@ def launch_main_app() -> None:
         for w in (sup_name_ent, sup_cat_ent, sup_loc_ent):
             w.delete(0, tk.END)
         sup_assign_cmb.set("(brak)")
-        refresh_sup_lb(); refresh_map()
+        refresh_sup_lb();
+        refresh_map()
 
     def del_sup():
         if not supplier_lb.curselection():
@@ -296,7 +314,8 @@ def launch_main_app() -> None:
             suppliers.remove(s)
         if s.marker:
             s.marker.delete()
-        refresh_sup_lb(); refresh_map()
+        refresh_sup_lb();
+        refresh_map()
 
     # ---------------- GUI -----------------------------
     app = tk.Tk()
@@ -309,86 +328,89 @@ def launch_main_app() -> None:
         tabs.add(t, text=lbl)
     tabs.pack(expand=True, fill="both")
 
-    # ------ zakładka Sklepy ----------
+    # sklepy
+
     ttk.Label(tab_s, text="Sklepy", font=("Arial", 14)).pack(pady=8)
 
-    frm_s = ttk.Frame(tab_s)
+    frm_s = ttk.Frame(tab_s);
     frm_s.pack()
 
-    # Nazwa
     ttk.Label(frm_s, text="Nazwa:").grid(row=0, column=0, sticky="e")
-    store_name_ent = tk.Entry(frm_s, width=25)
+    store_name_ent = tk.Entry(frm_s, width=25);
     store_name_ent.grid(row=0, column=1)
 
-    # Adres
     ttk.Label(frm_s, text="Adres (miasto, ul. nr):").grid(row=1, column=0, sticky="e")
-    store_loc_ent = tk.Entry(frm_s, width=25)
+    store_loc_ent = tk.Entry(frm_s, width=25);
     store_loc_ent.grid(row=1, column=1)
 
-    # Lat / Lon – nowe pola, aby móc podać ręcznie
-    ttk.Label(frm_s, text="Szer. geo:").grid(row=2, column=0, sticky="e")
-    store_lat_ent = tk.Entry(frm_s, width=25)
-    store_lat_ent.grid(row=2, column=1)
-
-    ttk.Label(frm_s, text="Dł. geo:").grid(row=3, column=0, sticky="e")
-    store_lon_ent = tk.Entry(frm_s, width=25)
-    store_lon_ent.grid(row=3, column=1)
-
-    # PRZYCISK Dodaj / Zapisz – musi być obiektem, aby potem zmienić tekst
     add_btn = ttk.Button(frm_s, text="Dodaj", command=add_store)
-    add_btn.grid(row=4, columnspan=2, pady=4)
+    add_btn.grid(row=2, columnspan=2, pady=4)
 
-    # Lista + przyciski Usuń / Edytuj
-    store_lb = tk.Listbox(tab_s, width=50, height=12)
+    store_lb = tk.Listbox(tab_s, width=50, height=12);
     store_lb.pack(pady=6)
 
     ttk.Button(tab_s, text="Usuń", command=del_store).pack(pady=2)
     ttk.Button(tab_s, text="Edytuj", command=edit_store).pack(pady=2)
-    # --- koniec zakładki Sklepy ------------------------------------------
+    # --- koniec zakładki Sklepy ----------------------------------
 
-        # ------ zakładka Pracownicy -------
+    # ------ zakładka Pracownicy -------
     ttk.Label(tab_e, text="Pracownicy", font=("Arial", 14)).pack(pady=8)
-    frm_e = ttk.Frame(tab_e); frm_e.pack()
+    frm_e = ttk.Frame(tab_e);
+    frm_e.pack()
     ttk.Label(frm_e, text="Imię i nazwisko:").grid(row=0, column=0, sticky="e")
-    emp_name_ent = tk.Entry(frm_e, width=25); emp_name_ent.grid(row=0, column=1)
+    emp_name_ent = tk.Entry(frm_e, width=25);
+    emp_name_ent.grid(row=0, column=1)
     ttk.Label(frm_e, text="Stanowisko:").grid(row=1, column=0, sticky="e")
-    emp_pos_ent = tk.Entry(frm_e, width=25); emp_pos_ent.grid(row=1, column=1)
+    emp_pos_ent = tk.Entry(frm_e, width=25);
+    emp_pos_ent.grid(row=1, column=1)
     ttk.Label(frm_e, text="Miejscowość:").grid(row=2, column=0, sticky="e")
-    emp_loc_ent = tk.Entry(frm_e, width=25); emp_loc_ent.grid(row=2, column=1)
+    emp_loc_ent = tk.Entry(frm_e, width=25);
+    emp_loc_ent.grid(row=2, column=1)
     ttk.Label(frm_e, text="Sklep (opc.):").grid(row=3, column=0, sticky="e")
     emp_assign_cmb = ttk.Combobox(frm_e, width=23, state="readonly")
-    emp_assign_cmb.grid(row=3, column=1, pady=2); emp_assign_cmb.set("(brak)")
+    emp_assign_cmb.grid(row=3, column=1, pady=2);
+    emp_assign_cmb.set("(brak)")
     ttk.Button(frm_e, text="Dodaj pracownika", command=add_emp).grid(row=4, columnspan=2, pady=4)
 
     emp_filter_cmb = ttk.Combobox(tab_e, width=40, state="readonly")
-    emp_filter_cmb.pack(pady=3); emp_filter_cmb.set("– Wszystkie –")
+    emp_filter_cmb.pack(pady=3);
+    emp_filter_cmb.set("– Wszystkie –")
     emp_filter_cmb.bind("<<ComboboxSelected>>", lambda *_: refresh_emp_lb())
-    employee_lb = tk.Listbox(tab_e, width=60, height=12); employee_lb.pack()
+    employee_lb = tk.Listbox(tab_e, width=60, height=12);
+    employee_lb.pack()
     ttk.Button(tab_e, text="Usuń", command=del_emp).pack(pady=4)
 
     # ------ zakładka Dostawcy ---------
     ttk.Label(tab_sup, text="Dostawcy", font=("Arial", 14)).pack(pady=8)
-    frm_sup = ttk.Frame(tab_sup); frm_sup.pack()
+    frm_sup = ttk.Frame(tab_sup);
+    frm_sup.pack()
     ttk.Label(frm_sup, text="Nazwa:").grid(row=0, column=0, sticky="e")
-    sup_name_ent = tk.Entry(frm_sup, width=25); sup_name_ent.grid(row=0, column=1)
+    sup_name_ent = tk.Entry(frm_sup, width=25);
+    sup_name_ent.grid(row=0, column=1)
     ttk.Label(frm_sup, text="Kategoria:").grid(row=1, column=0, sticky="e")
-    sup_cat_ent = tk.Entry(frm_sup, width=25); sup_cat_ent.grid(row=1, column=1)
+    sup_cat_ent = tk.Entry(frm_sup, width=25);
+    sup_cat_ent.grid(row=1, column=1)
     ttk.Label(frm_sup, text="Miejscowość:").grid(row=2, column=0, sticky="e")
-    sup_loc_ent = tk.Entry(frm_sup, width=25); sup_loc_ent.grid(row=2, column=1)
+    sup_loc_ent = tk.Entry(frm_sup, width=25);
+    sup_loc_ent.grid(row=2, column=1)
     ttk.Label(frm_sup, text="Sklep (opc.):").grid(row=3, column=0, sticky="e")
     sup_assign_cmb = ttk.Combobox(frm_sup, width=23, state="readonly")
-    sup_assign_cmb.grid(row=3, column=1, pady=2); sup_assign_cmb.set("(brak)")
+    sup_assign_cmb.grid(row=3, column=1, pady=2);
+    sup_assign_cmb.set("(brak)")
     ttk.Button(frm_sup, text="Dodaj dostawcę", command=add_sup).grid(row=4, columnspan=2, pady=4)
 
     sup_filter_cmb = ttk.Combobox(tab_sup, width=40, state="readonly")
-    sup_filter_cmb.pack(pady=3); sup_filter_cmb.set("– Wszystkie –")
+    sup_filter_cmb.pack(pady=3);
+    sup_filter_cmb.set("– Wszystkie –")
     sup_filter_cmb.bind("<<ComboboxSelected>>", lambda *_: refresh_sup_lb())
-    supplier_lb = tk.Listbox(tab_sup, width=60, height=12); supplier_lb.pack()
+    supplier_lb = tk.Listbox(tab_sup, width=60, height=12);
+    supplier_lb.pack()
     ttk.Button(tab_sup, text="Usuń", command=del_sup).pack(pady=4)
 
     # ------ zakładka Mapa -------------
     ttk.Label(tab_m, text="Mapa", font=("Arial", 14)).pack(pady=6)
-    top_m = ttk.Frame(tab_m); top_m.pack()
+    top_m = ttk.Frame(tab_m);
+    top_m.pack()
     ttk.Label(top_m, text="Widok:").grid(row=0, column=0, sticky="e")
     map_view_cmb = ttk.Combobox(
         top_m, width=45, state="readonly",
@@ -399,20 +421,25 @@ def launch_main_app() -> None:
             "Dostawcy – wybrany sklep",
         ]
     )
-    map_view_cmb.grid(row=0, column=1); map_view_cmb.current(0)
+    map_view_cmb.grid(row=0, column=1);
+    map_view_cmb.current(0)
     map_view_cmb.bind("<<ComboboxSelected>>", refresh_map)
 
     map_w = tkintermapview.TkinterMapView(tab_m, width=1180, height=520, corner_radius=0)
-    map_w.pack(); map_w.set_position(52.2297, 21.0122); map_w.set_zoom(6)
+    map_w.pack();
+    map_w.set_position(52.2297, 21.0122);
+    map_w.set_zoom(6)
 
     # ------ init --------
     store_lb.bind("<<ListboxSelect>>", lambda *_: refresh_map())
     sync_store_combos()
-    refresh_store_lb(); refresh_emp_lb(); refresh_sup_lb()
+    refresh_store_lb();
+    refresh_emp_lb();
+    refresh_sup_lb()
     app.mainloop()
 
 
-#skończyłam na tym
+# skończyłam na tym
 # zostawiam
 login_window = tk.Tk()
 login_window.title("Logowanie do Systemu")
@@ -430,4 +457,3 @@ login_button = tk.Button(login_window, text="Zaloguj", command=attempt_login)
 login_button.pack(pady=20)
 
 login_window.mainloop()
-
