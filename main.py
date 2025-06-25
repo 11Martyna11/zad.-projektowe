@@ -96,10 +96,25 @@ class Supplier:
     def __str__(self):
         return f"{self.name} – {self.category} ({self.location})"
 
+
 def launch_main_app() -> None:
     stores: list[Store] = []
     employees: list[Employee] = []
     suppliers: list[Supplier] = []
+
+    for name, addr, lat, lon in PRESET_STORES:
+        try:
+            st = Store(name, addr)  # utworzy strukturę, waliduje dane
+        except ValueError:
+            # jeśli adresu nie ma w OSM, tworzymy „na sucho”
+            st = object.__new__(Store)
+            st.name, st.address = name, addr
+            st.employees, st.suppliers = [], []
+            st.marker = None
+
+        # nadpisujemy współrzędne precyzyjnymi wartościami
+        st.lat, st.lon = lat, lon
+        stores.append(st)
     current_markers: list[tkintermapview.TkinterMapView] = []
 
     # --------------- helpers (listboxy) -----------------
@@ -296,16 +311,42 @@ def launch_main_app() -> None:
 
     # ------ zakładka Sklepy ----------
     ttk.Label(tab_s, text="Sklepy", font=("Arial", 14)).pack(pady=8)
-    frm_s = ttk.Frame(tab_s); frm_s.pack()
-    ttk.Label(frm_s, text="Nazwa:").grid(row=0, column=0, sticky="e")
-    store_name_ent = tk.Entry(frm_s, width=25); store_name_ent.grid(row=0, column=1)
-    ttk.Label(frm_s, text="Adres (miasto, ul. nr):").grid(row=1, column=0, sticky="e")
-    store_loc_ent = tk.Entry(frm_s, width=25); store_loc_ent.grid(row=1, column=1)
-    ttk.Button(frm_s, text="Dodaj", command=add_store).grid(row=2, columnspan=2, pady=4)
-    store_lb = tk.Listbox(tab_s, width=50, height=12); store_lb.pack(pady=6)
-    ttk.Button(tab_s, text="Usuń", command=del_store).pack()
 
-    # ------ zakładka Pracownicy -------
+    frm_s = ttk.Frame(tab_s)
+    frm_s.pack()
+
+    # Nazwa
+    ttk.Label(frm_s, text="Nazwa:").grid(row=0, column=0, sticky="e")
+    store_name_ent = tk.Entry(frm_s, width=25)
+    store_name_ent.grid(row=0, column=1)
+
+    # Adres
+    ttk.Label(frm_s, text="Adres (miasto, ul. nr):").grid(row=1, column=0, sticky="e")
+    store_loc_ent = tk.Entry(frm_s, width=25)
+    store_loc_ent.grid(row=1, column=1)
+
+    # Lat / Lon – nowe pola, aby móc podać ręcznie
+    ttk.Label(frm_s, text="Szer. geo:").grid(row=2, column=0, sticky="e")
+    store_lat_ent = tk.Entry(frm_s, width=25)
+    store_lat_ent.grid(row=2, column=1)
+
+    ttk.Label(frm_s, text="Dł. geo:").grid(row=3, column=0, sticky="e")
+    store_lon_ent = tk.Entry(frm_s, width=25)
+    store_lon_ent.grid(row=3, column=1)
+
+    # PRZYCISK Dodaj / Zapisz – musi być obiektem, aby potem zmienić tekst
+    add_btn = ttk.Button(frm_s, text="Dodaj", command=add_store)
+    add_btn.grid(row=4, columnspan=2, pady=4)
+
+    # Lista + przyciski Usuń / Edytuj
+    store_lb = tk.Listbox(tab_s, width=50, height=12)
+    store_lb.pack(pady=6)
+
+    ttk.Button(tab_s, text="Usuń", command=del_store).pack(pady=2)
+    ttk.Button(tab_s, text="Edytuj", command=edit_store).pack(pady=2)
+    # --- koniec zakładki Sklepy ------------------------------------------
+
+        # ------ zakładka Pracownicy -------
     ttk.Label(tab_e, text="Pracownicy", font=("Arial", 14)).pack(pady=8)
     frm_e = ttk.Frame(tab_e); frm_e.pack()
     ttk.Label(frm_e, text="Imię i nazwisko:").grid(row=0, column=0, sticky="e")
