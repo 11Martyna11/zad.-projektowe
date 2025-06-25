@@ -12,9 +12,10 @@ from bs4 import BeautifulSoup
 USER_CREDENTIALS = {"admin": "admin123"}
 
 PRESET_STORES = [
-    ("SuperMarket Centrum", "Warszawa, Marszałkowska 99", 52.2297, 21.0122),
-    ("Fresh Market Północ", "Gdańsk, Długa 1", 54.3480, 18.6466),
-    ("Eko-Sklep Południe", "Kraków, Rynek Główny 12", 50.0619, 19.9373),
+    ("Lidl", "Warszawa, Płochocińska 202", 52.3629, 21.0280),
+    ("Lidl", "Warszawa, Modlińska 35", 52.3040, 20.9868),
+    ("Lidl", "Warszawa, Jana Kasprowicza 117", 52.2886, 20.9318),
+    ("Lidl", "Warszawa, Radzymińska 314", 52.2934, 21.0815)
 ]
 
 PL_CENTER = (52.2297, 21.0122)
@@ -68,22 +69,51 @@ class Store:
 
 
 class Employee:
-    def __init__(self, fullname: str, position: str, location: str, store: Store | None = None):
+    def __init__(self,
+                 fullname: str,
+                 position: str,
+                 location: str,
+                 store: Store | None = None):
+
         self.fullname, self.position, self.location = fullname, position, location
-        self.lat, self.lon = wikigeocode(location)
         self.store = store
         self.marker = None
+
+        # ➊ jeśli przypisany do sklepu → bierzemy współrzędne sklepu
+        if store is not None:
+            self.lat, self.lon = store.lat, store.lon
+        else:
+            # ➋ najpierw próbujemy Nominatim, potem fallback do wiki
+            self.latlon_from_location(location)
+
+    # mała pomocnicza metoda = unifikacja w obydwu klasach
+    def latlon_from_location(self, location: str) -> None:
+        coords = nominatim_geocode(location)
+        if coords is None:
+            coords = wikigeocode(location.split(",")[0])
+        self.lat, self.lon = coords
 
     def __str__(self):
         return f"{self.fullname} – {self.position} ({self.location})"
 
-
 class Supplier:
-    def __init__(self, name: str, category: str, location: str, store: Store | None = None):
+    def __init__(self,
+                 name: str,
+                 category: str,
+                 location: str,
+                 store: Store | None = None):
+
         self.name, self.category, self.location = name, category, location
-        self.lat, self.lon = wikigeocode(location)
         self.store = store
         self.marker = None
+
+        if store is not None:
+            self.lat, self.lon = store.lat, store.lon
+        else:
+            self.latlon_from_location(location)
+
+    # ta sama pomocnicza metoda co wyżej
+    latlon_from_location = Employee.latlon_from_location
 
     def __str__(self):
         return f"{self.name} – {self.category} ({self.location})"
@@ -191,6 +221,14 @@ def launch_main_app() -> None:
                 current_markers.append(e.marker)
             map_w.set_position(st.lat, st.lon)
             map_w.set_zoom(12)
+
+        elif view == "Dostawcy – cała sieć":
+            for s in suppliers:
+                s.marker = map_w.set_marker(s.lat, s.lon,
+                                            text=s.name,
+                                            marker_color_outside="green")
+                current_markers.append(s.marker)
+            fit_map()
 
         elif view == "Dostawcy – wybrany sklep":
             if not store_lb.curselection():
@@ -322,12 +360,145 @@ def launch_main_app() -> None:
 
         ttk.Button(win, text="Zapisz", command=_save).grid(row=4, columnspan=2, pady=6)
 
+    # ── CRUD dostawców ────────────────────────────────
+    def add_sup():
+        n, cat, loc = sup_name_ent.get().strip(), sup_cat_ent.get().strip(), sup_loc_ent.get().strip()
+        if not n or not cat or not loc:
+            return
+        idx = sup_assign_cmb.current() - 1
+        st = stores[idx] if idx >= 0 else None
+        s = Supplier(n, cat, loc, st)
+        suppliers.append(s)
+        if st: st.suppliers.append(s)
+        for w in (sup_name_ent, sup_cat_ent, sup_loc_ent): w.delete(0, tk.END)
+        sup_assign_cmb.set("(brak)"); refresh_sup_lb(); refresh_map()
 
+    def del_sup():
+        if not supplier_lb.curselection():
+            return
+        flt, idx = sup_filter_cmb.get(), supplier_lb.curselection()[0]
+        s = suppliers.pop(idx) if flt == "– Wszystkie –" else (
+            next(st for st in stores if str(st) == flt).suppliers.pop(idx))
+        if s.marker: s.marker.delete()
+        if s in suppliers: suppliers.remove(s)
+        refresh_sup_lb(); refresh_map()
+
+    def edit_sup():
+        if not supplier_lb.curselection():
+            return
+        flt, idx = sup_filter_cmb.get(), supplier_lb.curselection()[0]
+        s = suppliers[idx] if flt == "– Wszystkie –" else (
+            next(st for st in stores if str(st) == flt).suppliers[idx])
+
+        win = tk.Toplevel(app); win.title("Edytuj dostawcę")
+        for i, (lbl, val) in enumerate([("Nazwa:", s.name),
+                                        ("Kategoria:", s.category),
+                                        ("Miejscowość:", s.location)]):
+            ttk.Label(win, text=lbl).grid(row=i, column=0, sticky="e")
+            ent = tk.Entry(win, width=30); ent.grid(row=i, column=1); ent.insert(0, val)
+            if i == 0: name_ent = ent
+            elif i == 1: cat_ent = ent
+            else: loc_ent = ent
+        ttk.Label(win, text="Sklep:").grid(row=3, column=0, sticky="e")
+        cmb = ttk.Combobox(win, width=28, state="readonly", values=["(brak)"] + [str(st) for st in stores])
+        cmb.grid(row=3, column=1); cmb.set(str(s.store) if s.store else "(brak)")
+
+        def _save():
+            s.name, s.category = name_ent.get().strip(), cat_ent.get().strip()
+            new_loc = loc_ent.get().strip()
+            new_store = stores[cmb.current() - 1] if cmb.current() > 0 else None
+            if s.store is not new_store:
+                if s.store: s.store.suppliers.remove(s)
+                if new_store: new_store.suppliers.append(s)
+                s.store = new_store
+            if new_loc != s.location:
+                s.location = new_loc; s.lat, s.lon = wikigeocode(new_loc)
+            refresh_sup_lb(); refresh_map(); win.destroy()
+
+        ttk.Button(win, text="Zapisz", command=_save).grid(row=4, columnspan=2, pady=6)
+
+    # ─────────  GUI  ─────────
+    tabs = ttk.Notebook(app)
+    tab_s, tab_e, tab_sup, tab_m = (ttk.Frame(tabs) for _ in range(4))
+    for t, lbl in zip((tab_s, tab_e, tab_sup, tab_m), ("Sklepy", "Pracownicy", "Dostawcy", "Mapa")):
+        tabs.add(t, text=lbl)
+    tabs.pack(expand=True, fill="both")
+
+    # Sklepy
+    ttk.Label(tab_s, text="Sklepy", font=("Arial", 14)).pack(pady=8)
+    frm_s = ttk.Frame(tab_s); frm_s.pack()
+    ttk.Label(frm_s, text="Nazwa:").grid(row=0, column=0, sticky="e")
+    store_name_ent = tk.Entry(frm_s, width=25); store_name_ent.grid(row=0, column=1)
+    ttk.Label(frm_s, text="Adres (miasto, ul. nr):").grid(row=1, column=0, sticky="e")
+    store_loc_ent = tk.Entry(frm_s, width=25); store_loc_ent.grid(row=1, column=1)
+    ttk.Button(frm_s, text="Dodaj", command=add_store).grid(row=2, columnspan=2, pady=3)
+    store_lb = tk.Listbox(tab_s, width=50, height=12); store_lb.pack(pady=6)
+    ttk.Button(tab_s, text="Usuń",  command=del_store).pack(pady=2)
+    ttk.Button(tab_s, text="Edytuj", command=edit_store).pack()
+
+    # Pracownicy
+    ttk.Label(tab_e, text="Pracownicy", font=("Arial", 14)).pack(pady=8)
+    frm_e = ttk.Frame(tab_e); frm_e.pack()
+    for r, (lbl, var) in enumerate([("Imię i nazwisko:", "emp_name_ent"),
+                                    ("Stanowisko:",     "emp_pos_ent"),
+                                    ("Miejscowość:",    "emp_loc_ent")]):
+        ttk.Label(frm_e, text=lbl).grid(row=r, column=0, sticky="e")
+        ent = tk.Entry(frm_e, width=25); ent.grid(row=r, column=1)
+        globals()[var] = ent
+    ttk.Label(frm_e, text="Sklep (opc.):").grid(row=3, column=0, sticky="e")
+    emp_assign_cmb = ttk.Combobox(frm_e, width=23, state="readonly"); emp_assign_cmb.grid(row=3, column=1)
+    emp_assign_cmb.set("(brak)")
+    ttk.Button(frm_e, text="Dodaj", command=add_emp).grid(row=4, columnspan=2, pady=3)
+    emp_filter_cmb = ttk.Combobox(tab_e, width=40, state="readonly"); emp_filter_cmb.pack(pady=3)
+    emp_filter_cmb.set("– Wszystkie –"); emp_filter_cmb.bind("<<ComboboxSelected>>", lambda *_: refresh_emp_lb())
+    employee_lb = tk.Listbox(tab_e, width=60, height=12); employee_lb.pack()
+    ttk.Button(tab_e, text="Usuń",  command=del_emp).pack(pady=2)
+    ttk.Button(tab_e, text="Edytuj", command=edit_emp).pack()
+
+    # Dostawcy
+    ttk.Label(tab_sup, text="Dostawcy", font=("Arial", 14)).pack(pady=8)
+    frm_sup = ttk.Frame(tab_sup); frm_sup.pack()
+    for r, (lbl, var) in enumerate([("Nazwa:",      "sup_name_ent"),
+                                    ("Kategoria:",  "sup_cat_ent"),
+                                    ("Miejscowość:","sup_loc_ent")]):
+        ttk.Label(frm_sup, text=lbl).grid(row=r, column=0, sticky="e")
+        ent = tk.Entry(frm_sup, width=25); ent.grid(row=r, column=1)
+        globals()[var] = ent
+    ttk.Label(frm_sup, text="Sklep (opc.):").grid(row=3, column=0, sticky="e")
+    sup_assign_cmb = ttk.Combobox(frm_sup, width=23, state="readonly"); sup_assign_cmb.grid(row=3, column=1)
+    sup_assign_cmb.set("(brak)")
+    ttk.Button(frm_sup, text="Dodaj", command=add_sup).grid(row=4, columnspan=2, pady=3)
+    sup_filter_cmb = ttk.Combobox(tab_sup, width=40, state="readonly"); sup_filter_cmb.pack(pady=3)
+    sup_filter_cmb.set("– Wszystkie –"); sup_filter_cmb.bind("<<ComboboxSelected>>", lambda *_: refresh_sup_lb())
+    supplier_lb = tk.Listbox(tab_sup, width=60, height=12); supplier_lb.pack()
+    ttk.Button(tab_sup, text="Usuń",  command=del_sup).pack(pady=2)
+    ttk.Button(tab_sup, text="Edytuj", command=edit_sup).pack()
+
+    # Mapa
+    ttk.Label(tab_m, text="Mapa", font=("Arial", 14)).pack(pady=6)
+    top_m = ttk.Frame(tab_m); top_m.pack()
+    ttk.Label(top_m, text="Widok:").grid(row=0, column=0, sticky="e")
+    map_view_cmb = ttk.Combobox(top_m, width=45, state="readonly",
+                                values=["Sklepy – wszystkie",
+                                        "Pracownicy – cała sieć",
+                                        "Pracownicy – wybrany sklep",
+                                        "Dostawcy – cała sieć",
+                                        "Dostawcy – wybrany sklep",])
+    map_view_cmb.grid(row=0, column=1); map_view_cmb.current(0)
+    map_view_cmb.bind("<<ComboboxSelected>>", refresh_map)
+    map_w = tkintermapview.TkinterMapView(tab_m, width=1180, height=520, corner_radius=0)
+    map_w.pack(); map_w.set_position(*PL_CENTER); map_w.set_zoom(6)
+
+    # inicjalizacja
+    store_lb.bind("<<ListboxSelect>>", lambda *_: refresh_map())
+    for lb, func in [(store_lb, edit_store), (employee_lb, edit_emp), (supplier_lb, edit_sup)]:
+        lb.bind("<Double-1>", lambda e, f=func: f())
+
+    sync_store_combos()
+    refresh_store_lb(); refresh_emp_lb(); refresh_sup_lb(); refresh_map()
+    app.mainloop()
 
 # ─────────  OKNO LOGOWANIA  ─────────
-
-
-
 
 
 # zostawiam
