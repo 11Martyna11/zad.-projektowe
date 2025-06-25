@@ -15,18 +15,6 @@ from bs4 import BeautifulSoup
 USER_CREDENTIALS = {"admin": "admin123"}
 
 
-def verify_login(username: str, password: str) -> bool:
-    return USER_CREDENTIALS.get(username.strip()) == password.strip()
-
-
-def attempt_login() -> None:
-    if verify_login(username_entry.get(), password_entry.get()):
-        messagebox.showinfo("Logowanie udane", "Zalogowano pomyślnie.")
-        login_window.destroy()
-        launch_main_app()
-    else:
-        messagebox.showerror("Błąd logowania", "Nieprawidłowy login lub hasło")
-
 PRESET_STORES = [
     ("SuperMarket Centrum", "Warszawa, Marszałkowska 99", 52.2297, 21.0122),
     ("Fresh Market Północ", "Gdańsk, Długa 1", 54.3480, 18.6466),
@@ -50,16 +38,15 @@ def nominatim_geocode(query: str) -> tuple[float, float] | None:
     return None
 
 
-def wikigeocode(city: str):
-    url = f"https://pl.wikipedia.org/wiki/{city.strip()}"
+def wikigeocode(city: str) -> tuple[float, float]:
     try:
-        html = requests.get(url, timeout=6).text
+        html = requests.get(f"https://pl.wikipedia.org/wiki/{city.strip()}", timeout=6).text
         soup = BeautifulSoup(html, "html.parser")
         lat = soup.select('.latitude')[1].text.replace(',', '.')
         lon = soup.select('.longitude')[1].text.replace(',', '.')
         return float(lat), float(lon)
     except Exception:
-        return 52.2297, 21.0122
+        return PL_CENTER
 
 
 class Store:
@@ -72,19 +59,24 @@ class Store:
 
         coords = nominatim_geocode(address)
         if coords is None:
-            # brak w OSM – informacja i wyjątek,
-            # add_store() przechwyci i nie doda rekordu
-            raise ValueError(
-                f"Adres „{address}” nie został odnaleziony w OpenStreetMap."
-            )
+            raise ValueError(f"Adres „{address}” nie został odnaleziony w OpenStreetMap.")
         self.lat, self.lon = coords
+
+    @classmethod
+    def raw(cls, name: str, address: str, lat: float, lon: float) -> "Store":
+        obj = object.__new__(cls)
+        obj.name, obj.address = name, address
+        obj.lat, obj.lon = lat, lon
+        obj.employees, obj.suppliers = [], []
+        obj.marker = None
+        return obj
 
     def __str__(self) -> str:
         return f"{self.name} ({self.address})"
 
 
 class Employee:
-    def __init__(self, fullname, position, location, store=None):
+    def __init__(self, fullname: str, position: str, location: str, store: Store | None = None):
         self.fullname = fullname
         self.position = position
         self.location = location
@@ -97,7 +89,7 @@ class Employee:
 
 
 class Supplier:
-    def __init__(self, name, category, location, store=None):
+    def __init__(self, name: str, category: str, location: str, store: Store | None = None):
         self.name = name
         self.category = category
         self.location = location
@@ -107,6 +99,18 @@ class Supplier:
 
     def __str__(self):
         return f"{self.name} – {self.category} ({self.location})"
+
+def verify_login(username: str, password: str) -> bool:
+    return USER_CREDENTIALS.get(username.strip()) == password.strip()
+
+
+def attempt_login() -> None:
+    if verify_login(username_entry.get(), password_entry.get()):
+        messagebox.showinfo("Logowanie udane", "Zalogowano pomyślnie.")
+        login_window.destroy()
+        launch_main_app()
+    else:
+        messagebox.showerror("Błąd logowania", "Nieprawidłowy login lub hasło")
 
 
 def launch_main_app() -> None:
@@ -119,15 +123,18 @@ def launch_main_app() -> None:
             st = Store(name, addr)  # utworzy strukturę, waliduje dane
         except ValueError:
             # jeśli adresu nie ma w OSM, tworzymy „na sucho”
-            st = object.__new__(Store)
+            st = Store.raw(name, addr, lat, lon)
             st.name, st.address = name, addr
-            st.employees, st.suppliers = [], []
-            st.marker = None
-
-        # nadpisujemy współrzędne precyzyjnymi wartościami
         st.lat, st.lon = lat, lon
         stores.append(st)
+
+    app = tk.Tk()
+    app.title("System zarządzania sklepami")
+    app.geometry("1280x760")
+
     current_markers: list[tkintermapview.TkinterMapView] = []
+
+
 
     # --------------- helpers (listboxy) -----------------
     def refresh_store_lb():
@@ -320,7 +327,9 @@ def launch_main_app() -> None:
     # ---------------- GUI -----------------------------
     app = tk.Tk()
     app.title("System Zarządzania Sklepami")
-    app.geometry("1280x750")
+    app.geometry("1280x760")
+
+    current_markers: list[tkintermapview.TkinterMapView] = []
 
     tabs = ttk.Notebook(app)
     tab_s, tab_e, tab_sup, tab_m = (ttk.Frame(tabs) for _ in range(4))
