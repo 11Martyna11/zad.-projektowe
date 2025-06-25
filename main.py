@@ -44,3 +44,21 @@ def wikigeocode(city: str) -> tuple[float, float]:
         return PL_CENTER
 
 
+
+
+
+
+# zostawiam
+
+if __name__ == "__main__":
+    login_window = tk.Tk()
+    login_window.title("Logowanie do Systemu")
+    login_window.geometry("400x200")
+
+    tk.Label(login_window, text="Nazwa użytkownika:").pack(pady=5)
+    username_entry = tk.Entry(login_window);
+    username_entry.pack()
+    tk.Label(login_window, text="Hasło:").pack(pady=5)
+    password_entry = tk.Entry(login_window, show="*"); password_entry.pack()
+    tk.Button(login_window, text="Zaloguj", command=attempt_login).pack(pady=20)
+    login_window.mainloop()
