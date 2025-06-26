@@ -86,7 +86,7 @@ class Employee:
             # ➋ najpierw próbujemy Nominatim, potem fallback do wiki
             self.latlon_from_location(location)
 
-    # mała pomocnicza metoda = unifikacja w obydwu klasach
+    # pomocnicza metoda
     def latlon_from_location(self, location: str) -> None:
         coords = nominatim_geocode(location)
         if coords is None:
@@ -212,16 +212,6 @@ def launch_main_app() -> None:
                 current_markers.append(e.marker)
             fit_map()
 
-        elif view == "Pracownicy – wybrany sklep":
-            if not store_lb.curselection():
-                return
-            st = stores[store_lb.curselection()[0]]
-            for e in st.employees:
-                e.marker = map_w.set_marker(e.lat, e.lon, text=e.fullname, marker_color_outside="orange")
-                current_markers.append(e.marker)
-            map_w.set_position(st.lat, st.lon)
-            map_w.set_zoom(12)
-
         elif view == "Dostawcy – cała sieć":
             for s in suppliers:
                 s.marker = map_w.set_marker(s.lat, s.lon,
@@ -229,16 +219,6 @@ def launch_main_app() -> None:
                                             marker_color_outside="green")
                 current_markers.append(s.marker)
             fit_map()
-
-        elif view == "Dostawcy – wybrany sklep":
-            if not store_lb.curselection():
-                return
-            st = stores[store_lb.curselection()[0]]
-            for s in st.suppliers:
-                s.marker = map_w.set_marker(s.lat, s.lon, text=s.name, marker_color_outside="green")
-                current_markers.append(s.marker)
-            map_w.set_position(st.lat, st.lon)
-            map_w.set_zoom(10)
 
     # ── geokoder w wątku ────────────────────────────────
     def threaded_geocode(addr: str, callback):
@@ -481,9 +461,7 @@ def launch_main_app() -> None:
     map_view_cmb = ttk.Combobox(top_m, width=45, state="readonly",
                                 values=["Sklepy – wszystkie",
                                         "Pracownicy – cała sieć",
-                                        "Pracownicy – wybrany sklep",
-                                        "Dostawcy – cała sieć",
-                                        "Dostawcy – wybrany sklep",])
+                                        "Dostawcy – cała sieć",])
     map_view_cmb.grid(row=0, column=1); map_view_cmb.current(0)
     map_view_cmb.bind("<<ComboboxSelected>>", refresh_map)
     map_w = tkintermapview.TkinterMapView(tab_m, width=1180, height=520, corner_radius=0)
