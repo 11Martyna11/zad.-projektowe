@@ -463,7 +463,9 @@ def launch_main_app() -> None:
     map_view_cmb = ttk.Combobox(top_m, width=45, state="readonly",
                                 values=["Sklepy – wszystkie",
                                         "Pracownicy – cała sieć",
-                                        "Dostawcy – cała sieć",])
+                                        "Pracownicy – wybrany sklep",
+                                        "Dostawcy – cała sieć",
+                                        "Dostawcy – wybrany sklep",])
     map_view_cmb.grid(row=0, column=1); map_view_cmb.current(0)
     map_view_cmb.bind("<<ComboboxSelected>>", refresh_map)
     map_w = tkintermapview.TkinterMapView(tab_m, width=1180, height=520, corner_radius=0)
