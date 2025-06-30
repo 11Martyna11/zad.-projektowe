@@ -222,6 +222,36 @@ def launch_main_app() -> None:
                 current_markers.append(s.marker)
             fit_map()
 
+        elif view == "Pracownicy – wybrany sklep":
+            if not store_lb.curselection():
+                return
+            st = stores[store_lb.curselection()[0]]
+
+            for e in st.employees:
+                e.marker = map_w.set_marker(
+                    e.lat, e.lon,
+                    text=e.fullname,
+                    marker_color_outside="orange"
+                )
+                current_markers.append(e.marker)
+
+            fit_map()
+
+        elif view == "Dostawcy – wybrany sklep":
+            if not store_lb.curselection():
+                return
+            st = stores[store_lb.curselection()[0]]
+
+            for s in st.suppliers:
+                s.marker = map_w.set_marker(
+                    s.lat, s.lon,
+                    text=s.name,
+                    marker_color_outside="green"
+                )
+                current_markers.append(s.marker)
+
+            fit_map()
+
     # ── geokoder w wątku ────────────────────────────────
     def threaded_geocode(addr: str, callback):
         def job():
