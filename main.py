@@ -21,18 +21,20 @@ PRESET_STORES = [
 PL_CENTER = (52.2297, 21.0122)
 
 # geokodowanie
-def nominatim_geocode(query: str) -> tuple[float, float] | None:
-    url = "https://nominatim.openstreetmap.org/search"
-    params = {"q": query, "format": "json", "limit": 1}
-    headers = {"User-Agent": "ShopManagerApp/1.1 (kontakt@example.com)"}
+def geocode(query: str) -> tuple[float, float] | None:
+    "dla OSM"
     try:
-        data = requests.get(url, params=params, headers=headers, timeout=6).json()
-        if data:
-            return float(data[0]["lat"]), float(data[0]["lon"])
+        data = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": query, "format": "json", "limit": 1},
+            headers={"User-Agent": "ShopManagerApp"},
+            timeout=5
+        ).json()
+        return (float(data[0]["lat"]), float(data[0]["lon"])) if data else None
     except Exception:
-        pass
-    return None
+        return None
 
+nominatim_geocode = geocode
 
 def wikigeocode(city: str) -> tuple[float, float]:
     try:
@@ -44,7 +46,7 @@ def wikigeocode(city: str) -> tuple[float, float]:
     except Exception:
         return PL_CENTER
 
-# ─────────  MODELE  ─────────
+# modele
 class Store:
     def __init__(self, name: str, address: str):
         self.name, self.address = name, address
